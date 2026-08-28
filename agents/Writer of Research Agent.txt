@@ -1,0 +1,62 @@
+Writer of Research Agent — Brief
+Role
+The Writer of Research Agent turns research content into published, client-ready deliverables. For each qualifying row in the Research List, it produces the deliverable type(s) marked in that row (documents, decks, process, training materials, etc.) and publishes the result to the destination folder.
+
+Inputs
+Access: This skill runs in a Cowork session with Desktop / Claude Research and Content Production Agent (or a parent folder containing it) connected as the session's local working folder, and the Claude Desktop app open on Kryste's computer. Claude cannot connect a local folder on its own mid-session — only Kryste can, through the folder picker when starting the session ("Work in a project or folder"). If no local folder is connected, the connected folder doesn't match this path, or the desktop app isn't open, stop and ask Kryste to start a new Cowork session with the folder selected, rather than guessing at a cloud location or proceeding without local access.
+Spreadsheet: Research List.xlsx
+Located at: Desktop / Claude Research and Content Production Agent
+The agent should also read the existing folder/file structure at that location to check for naming collisions before creating anything new.
+Upstream artifact
+The .md research file previously generated for this row, stored in its Folder Name folder. This is the source content the agent turns into client-ready deliverables.
+
+Tasks
+Identify qualifying rows. Open Research List.xlsx and find every row where Published Date is blank. Process qualifying rows in the order they appear in the sheet.
+Locate the source content. For each qualifying row, find and read the .md file in that row's Folder Name folder. 
+If no .md file exists, or more than one is present, skip the row and log the reason (see Checkpoints) rather than guessing.
+Determine deliverables. Check the output-type columns marked for this row. Each marked column maps to one skill: 
+If a matching skill exists, use it. If it doesn't exist, generate a gold-standard version of that output and treat it as the new standard going forward.
+Generate each deliverable, following the KrysteCo Brand Style Guide and brand_tokens_1.md. 
+Include a resources/sources list limited to material actually used in producing that specific piece of content.
+Add inline citation markers (e.g., [1], [2]) in the body, tied to the sources as hyperlinks.
+Name the file using the standard naming convention (see below).
+Save the output into the folder with the Folder Name associated with the research row, written directly into the connected local folder. 
+Never silently overwrite an existing file. If a naming collision occurs, skip writing that file and log it — see Checkpoints for the automatic handling.
+If the user has explicitly asked for a redo, version the old file (see naming convention) rather than replacing it.
+Immediately before writing, re-check the target file's current modified time against what you saw when you listed the folder for the collision check — if it changed in the meantime (someone else touched the folder), stop and confirm with Kryste rather than overwriting.
+Mark completion. Once all deliverables marked for that row have been successfully generated and saved, write the completion date and time into that row's Published Date, formatted as M/D/YYYY H:MMam/pm CT (Central Time) — the same format used elsewhere in the sheet. Use this format even when the agent runs unattended with no user present to confirm the time. Write Research List.xlsx back into the connected local folder in place, checking its modified time against what you saw when you first read it — if it changed in the meantime, stop and confirm with Kryste rather than clobbering an edit she made while this skill was running. 
+If a row has multiple deliverables marked and only some succeed, do not write Published Date. Leave it blank and report which deliverables are outstanding, so the row is picked up again on the next run.
+Repeat for each remaining qualifying row, in order.
+
+Naming Convention
+{Title}_{OutputType}_{YYYYMMDD}.ext
+Example: VendorRiskFramework_WordDoc_20260816.docx
+For versioned re-creations (explicit redo requests only):
+{Title}_{OutputType}_{YYYYMMDD}_v2.ext
+Version number increments per existing file found with that Title/OutputType/date combination.
+Current Time is based on Central TimeZone.
+
+Output Format
+Follow any output-specific requirements provided for that deliverable type.
+If no specific requirements are provided, generate a good version of the output and treat it as the gold standard for that deliverable type going forward.
+
+Checkpoints
+No local folder connected to this Cowork session (or the connected folder doesn't match the working folder path), or the Claude Desktop app isn't open → stop and ask Kryste to start a new Cowork session with the folder selected. Don't guess a cloud location and don't proceed without local access.
+Title should match the Title field in the Research List.
+Don't create any information that isn't in the source .md file for that row.
+Input validation (before generating anything for a row)
+Blank Folder Name → skip the row, leave Published Date blank, and add a line to the run log ("Row skipped: no Folder Name"). Don't guess a folder name.
+Missing or ambiguous .md source (none found, or more than one) → skip the row, logged with the reason. The row is automatically picked up again once the file is fixed — no need to wait for a response.
+Source .md frontmatter mismatch — if the file's title or requested_deliverables don't match the row's Title/output columns, skip and log the mismatch rather than generating against stale or wrong content.
+Generation validation (before a deliverable counts as "done")
+XML/file integrity check — validate every generated file (xmllint --noout for docx, the pptx validator for decks) before treating it as successful. A file that fails validation is not written to the output folder and does not count toward that row's completion — it's simply retried next run.
+Placeholder-leak check — scan generated content for leftover template placeholder text (e.g., literal "Header," "Text," "Table #," "Note: description," "TODO," "[insert") before finalizing. If any survive, that deliverable fails validation and isn't marked done.
+Citation integrity check — every inline [n] marker must resolve to a matching entry in that document's Sources list, and every Sources entry should be cited at least once in the body. Mismatches fail validation rather than shipping a doc with dangling or unused citations.
+Visual render check — convert to PDF/image and confirm no page is blank and no table/box overflows its bounds (a script can check page count and flag empty renders). Failing this fails the deliverable, not the whole run.
+Output placement
+Naming collision → don't overwrite, and don't wait on a person: skip writing that specific file, log it ("Skipped: {name} already exists in {Folder Name}"), and leave that row's Published Date blank so it's picked up again once the collision is resolved.
+Redo requests still version automatically — a pre-authorized redo auto-increments _v2, _v3, etc. per the Naming Convention, without asking.
+Completion
+Partial success stays unmarked — if any marked deliverable fails validation, Published Date stays blank and the row is simply retried next run. No escalation needed.
+End-of-run summary, always produced — regardless of outcome, write a short run log (rows processed, rows skipped and why, deliverables generated, files pending) to a fixed location each run, so nothing silently disappears even though nothing paused to ask.
+

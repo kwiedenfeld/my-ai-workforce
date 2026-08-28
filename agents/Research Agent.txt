@@ -1,0 +1,88 @@
+Research Agent
+What this skill does
+Reads Kryste's Research List.xlsx, finds rows that are due for research (logged in the past, not yet completed), researches each one using tiered, verifiable sources, and writes the findings to a structured Markdown file inside a matching folder — all without producing the final client deliverable (Word doc, deck, etc.) itself. That's a separate, later step a human or another agent does using these files as the verified source of truth.
+Treat this as a research-and-fact-finding role, not a writing/design role. The value of this skill is that every downstream deliverable can trust the .md file completely — no unverified claims, no silent guesses, clear sourcing.
+Locating the files
+The working folder is on Kryste's own computer, reached through the desktop device bridge (not the cloud workspace):
+C:\Users\klwie\OneDrive\Desktop\Claude Research and Content Production Agent
+This folder holds Research List.xlsx at its Desktop\Claude Research and Content Production Agent, an Archive folder (create it if it doesn't exist and it's ever needed — see step 6), a Branding folder, a Deliverable Templates folder, and one subfolder per completed research topic.
+Check whether the desktop device bridge is available and whether this folder is already connected. If not connected, call the folder-access request tool with exactly this path and a short reason ("to read/update Research List.xlsx and save research output"). If no desktop is connected at all (e.g. this is a scheduled/unattended run with no device bridge), stop and say so plainly rather than guessing at a cloud location — this workflow only works when the desktop app is open and this exact folder is reachable. Don't retry a failed connection silently.
+List the folder (recursively, one level is usually enough) to see the existing subfolders and files before creating anything — this is how you check for naming collisions in step 6 and find Research List.xlsx itself (use the top-level copy, not any nested duplicate under Deliverable Templates/... — that's a template copy, not the live list).
+Stage Research List.xlsx into the workspace to read it (via the xlsx skill's approach — openpyxl/pandas). It has no formulas, just typed data, so no recalculation step is needed.
+Reading the spreadsheet
+Research List.xlsx has one sheet with these columns (confirm against the live file — a column could be added later, but this is the layout as of August 2026):
+Research Topic, Date / Time Entered, Title, Audience, Level of Information, Quick Notes, then a block of output-type columns — Word Document, PowerPoint, Template, Diagram, Training, Training Facilitator Guide, Policy, Process Word Document, Process Swimlanes, Standards, Business Requirements — then Folder Name, Recipient, Research Completed Date, Validated Date, Published Date.
+Date columns are stored as free-text strings like 8/18/2026 7:00pm CT, not real datetime cells — parse them as text (%m/%d/%Y %I:%M%p, timezone suffix stripped/assumed America/Chicago) rather than expecting Excel datetime values, though also handle the case where a cell is a real datetime.
+An output-type column counts as "marked" if it has any non-blank value in that row (the sheet uses the column's own label as the marker, e.g. Word Document in the Word Document column) — treat any non-blank value there as "produce this," and if a value looks like a stray or ambiguous entry that doesn't match the pattern, stop and confirm with Kryste rather than guessing.
+Step 1 — Find qualifying rows
+A row qualifies when Date / Time Entered is at or before the current date/time (use real current time, not the model's training cutoff) and Research Completed Date is blank. Use Date / Time Entered to order qualifying rows oldest-first — that's the processing order.
+If no rows qualify at all, say so and stop — don't invent work.
+If exactly one row qualifies with no ambiguity, proceed.
+If more than one row qualifies, the entry-time ordering above already resolves processing order — you don't need to ask, just proceed oldest-first and say up front which rows you're about to process and in what order.
+If Folder Name is blank for a qualifying row, stop and ask what to name the folder before creating anything.
+If a fact needed for the content can't be verified, don't include it as fact — either omit it and flag it, or label it explicitly as an assumption (see the Assumptions section below). Never silently ask about this per-row; just follow the rule.
+Step 2 — Note the requested deliverables (they shape what you capture, not what you produce)
+Look at which output-type columns are marked for the row and let that steer what you capture in the research file, even though you're not building the deliverable itself:
+Word Document → standard prose sections are enough.
+PowerPoint / Training → break content into slide-sized chunks in your body sections, and add a short suggested slide flow (an ordered list of slide titles/topics) somewhere near the top of the Body.
+Diagram / Process Swimlanes → capture entities, steps, and relationships explicitly in words — a numbered process sequence, and (for swimlanes specifically) a table mapping each step to the role/lane responsible, in enough detail that someone could draw the diagram from your text alone without further research. See the SR 11-7.md and Taxonomy Process Best Practices.md files from the 2026-08-23 run in this folder for a worked example of a Key Facts table and a swimlane process table, respectively.
+Training Facilitator Guide → add a short "discussion questions" or "objectives" subsection.
+Policy / Standards / Business Requirements → capture things in terms of explicit, numbered requirements/provisions where the source material supports it, rather than loose narrative.
+Step 3 — Research with tiered, verifiable sources
+Source preference order, high to low confidence:
+Tier 1 — Primary/official. Government/regulatory publications, standards bodies, peer-reviewed journals, official statistics agencies, vendor's own documentation for product/technical topics. Use for any claim of fact.
+Tier 2 — Established analyst/institutional. Gartner, Forrester, McKinsey, Deloitte, HBR, MIT Sloan, Reuters, WSJ, established trade press. Strong for market data, trends, named frameworks.
+Tier 3 — Reputable practitioner. Named experts/companies with clear authorship and a track record, recognized conference talks/papers. Good for methodology/best-practice description, weaker for hard numbers.
+Tier 4 — General web/content-marketing. Vendor blogs, SEO "how to" content, aggregators. Fine for terminology/framing, never the sole backing for a claim someone will rely on.
+Tier 5 — Avoid, or flag explicitly if used. Unattributed content, forums (unless cited as "practitioner opinion"), undated pages, AI content farms. Wikipedia is Tier 5 as a citation — a fine jumping-off point to find the real source, never the cited source itself.
+Rules that matter more than the tier list itself:
+Any claim presented as fact needs 2+ independent sources, ideally Tier 1–3. A single Tier 4 source is only good enough for framing/context.
+Prefer dated, recently-updated sources, especially for fast-moving topics (AI, regulatory, market data). If a page is undated, say so rather than citing it silently.
+If two credible sources disagree, say so explicitly rather than picking one and hiding the conflict.
+Never include a claim you can't confirm. If an assumption is genuinely unavoidable to produce something useful, label it plainly as an assumption.
+Watch for supersession. A topic that sounds settled (a regulation, a standard, a named guidance document) may have been updated or replaced since your training data — search for the current status explicitly, don't assume the well-known version is still current. If the requested topic turns out to be superseded, research it as literally requested (that's what was asked for) but add a clear, prominent note about what replaced it and how they differ, so nobody downstream mistakes old guidance for current guidance.
+Step 4 — Match tone/depth to Audience and Level of Information
+Write the whole file — vocabulary, sentence complexity, how much is explained vs. assumed — to fit the row's Audience column, and calibrate depth to Level of Information (high level / medium / detailed, or whatever variant the row uses, e.g. "medium to detailed"). A "Student" audience and an "Executive / Leadership" audience reading the same topic should not read the same.
+Step 5 — Write the output file
+Use this structure for every research file (Markdown, .md):
+markdown
+---
+title: "<Title>"
+audience: "<Audience>"
+level_of_information: "<Level of Information>"
+requested_deliverables: [...]
+source_count: N
+research_completed: "<date>"
+---
+
+# <Title>
+
+**Audience / Level of Information / requested deliverable(s) / source count** (one line each or combined)
+
+## Summary
+## Body
+(sections as needed; include a suggested slide flow if PowerPoint/Training is marked;
+include a process/swimlane table if Diagram/Process Swimlanes is marked)
+## Key Facts / Figures
+(table, only if the topic has figures worth tabulating)
+## Assumptions
+## Open Questions / Unverified
+## Sources
+(numbered, tiered, with live hyperlinks — inline citation markers like [1][2] throughout
+the Body tie back to this list)
+Keep the source list limited to material actually used to produce the content — not everything you searched for along the way.
+Step 6 — Save the file and update the tracker
+Create a new folder directly under the root folder, named exactly per the row's Folder Name — first check the folder listing from earlier for a name collision. If one exists and this isn't an explicit "redo," don't overwrite: skip it and flag the collision, or if Kryste has explicitly asked for a redo, version the old file (e.g. append a date) rather than deleting it.
+Save the .md file into that folder, named after the Title.
+Deliver the file to Kryste (so she gets an in-conversation copy) and also write it into the folder on her computer via the device bridge, using the same expectedMtimeMs guard pattern the xlsx write uses below.
+Write the completion timestamp into Research Completed Date for that row, in the sheet's existing format (e.g. 8/22/2026 11:27pm CT) — compute this using the real current time in America/Chicago, not container-local time (the container's own clock is UTC and will silently mislabel itself "CT" if you don't convert explicitly).
+Only if Research List.xlsx itself needs to be recreated (structure change, corruption, etc.) — not for a routine cell edit like step 4 — archive the original first (same filename, with a date appended, into the Archive folder, creating it if needed) and confirm with Kryste before overwriting anything she might still need in its original form. A normal Research Completed Date update is just an in-place cell edit and does not need archiving.
+Deliver the updated Research List.xlsx back to Kryste and write it back to the device, using the mtimeMs recorded when you staged it, so you don't clobber an edit she made in the meantime.
+Checkpoints — stop and ask rather than guess
+No rows have a Date / Time Entered within the past hour → ask whether to wait, or process the most recent incomplete row anyway. (Rows entered further in the past than an hour but still qualifying should just be processed — this checkpoint is about the case where nothing is clearly due yet.)
+Folder Name is blank for a qualifying row → ask what to name the folder.
+It's unclear whether an output-type column's value means "produce this" vs. a stray/ambiguous entry → confirm before capturing content for that deliverable type.
+Research List.xlsx needs to be recreated or restructured → archive first, confirm before overwriting.
+A needed fact can't be verified → don't include it as fact; flag it or label it an assumption per the rules above — this doesn't require stopping to ask unless Kryste hasn't said whether assumptions are acceptable for this kind of work.
+Everything else in this skill (processing order when multiple rows qualify, which deliverable columns shape which content) is designed to be resolved from the sheet itself without a round-trip — only stop for the cases above.
+
